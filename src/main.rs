@@ -29,6 +29,7 @@ async fn main() {
         .about(crate_description!())
         .arg(Arg::with_name("opt_login_id").short("l").takes_value(true))
         .arg(Arg::with_name("opt_password").short("p").takes_value(true))
+        .arg(Arg::with_name("quiet").short("q"))
         .subcommand(
             SubCommand::with_name("login")
                 .arg(Arg::with_name("login_id").required(true))
@@ -36,11 +37,13 @@ async fn main() {
         )
         .subcommand(SubCommand::with_name("logout"));
     let matches = app.get_matches();
+    let is_quiet = matches.is_present("quiet");
     match matches.subcommand() {
         ("login", Some(args)) => {
             if let Err(err) = login(
                 args.value_of("login_id").unwrap(),
                 args.value_of("password").unwrap(),
+                is_quiet,
             ) {
                 eprintln!("Error: {}", err);
                 std::process::exit(1);
@@ -64,7 +67,7 @@ async fn main() {
             } else {
                 None
             };
-            if let Err(err) = check(login_info).await {
+            if let Err(err) = check(login_info, is_quiet).await {
                 eprintln!("Error: {}", err);
                 std::process::exit(1);
             }
@@ -82,13 +85,15 @@ fn init_data_dir() -> Result<()> {
     Ok(())
 }
 
-fn login(login_id: &str, password: &str) -> Result<()> {
+fn login(login_id: &str, password: &str, quiet: bool) -> Result<()> {
     let login_info = login::LoginInfo {
         login_id: login_id.to_owned(),
         password: password.to_owned(),
     };
     login_info.save()?;
-    println!("successfully saved login info");
+    if !quiet {
+        println!("successfully saved login info");
+    }
     Ok(())
 }
 fn logout() -> Result<()> {
@@ -100,58 +105,81 @@ fn logout() -> Result<()> {
     Ok(())
 }
 
-async fn check(login_info: Option<login::LoginInfo>) -> Result<()> {
+async fn check(login_info: Option<login::LoginInfo>, quiet: bool) -> Result<()> {
     let login_info = if let Some(l) = login_info {
         l
     } else {
         login::LoginInfo::load()?
     };
 
-    print_f!("logging in...");
+    if !quiet {
+        print_f!("logging in...");
+    }
     let session = waseda_moodle::Session::login(&login_info.login_id, &login_info.password)
         .await
         .context(ErrorKind::LoginError)?;
-    println!("ok");
+    if !quiet {
+        println!("ok");
+    }
 
-    print_f!("fetching courses list...");
+    if !quiet {
+        print_f!("fetching courses list...");
+    }
     let list = waseda_moodle::course::fetch_enrolled_courses(&session)
         .await
         .context(ErrorKind::InvalidResponse)?;
-    println!("ok");
+    if !quiet {
+        println!("ok");
+    }
 
     let mut first_fetched = Vec::new();
     let mut updated = Vec::new();
+    let mut no_updates = Vec::new();
 
     let mut count = 0;
     let total = list.len();
     for c in list {
         count += 1;
-        let c_status = check_course(&session, &c, count, total).await?;
+        let c_status = check_course(&session, &c, count, total, quiet).await?;
 
         match c_status {
             Status::Updated => updated.push(c),
             Status::FirstFetched => first_fetched.push(c),
-            _ => (),
+            Status::NoUpdates => no_updates.push(c),
         }
     }
 
-    print_f!("\n");
+    if !quiet {
+        print_f!("\n");
+    }
 
-    if first_fetched.len() > 0 || updated.len() > 0 {
-        if first_fetched.len() > 0 {
-            println!("First fetched:");
-            for c in first_fetched {
-                println!("\t{} - {}", c.name, c.view_url);
-            }
+    if quiet {
+        for c in first_fetched {
+            println!("FirstFetched {} {}", c.view_url, c.name);
         }
-        if updated.len() > 0 {
-            println!("\nUpdated:");
-            for c in updated {
-                println!("\t{} - {}", c.name, c.view_url);
-            }
+        for c in updated {
+            println!("Updated {} {}", c.view_url, c.name);
+        }
+        for c in no_updates {
+            println!("NoUpdates {} {}", c.view_url, c.name);
         }
     } else {
-        println!("There are no updates.")
+        if first_fetched.len() > 0 || updated.len() > 0 {
+            if first_fetched.len() > 0 {
+                println!("First fetched:");
+                for c in first_fetched {
+                    println!("\t{} - {}", c.name, c.view_url);
+                }
+            }
+            if updated.len() > 0 {
+                println!("\nUpdated:");
+                for c in updated {
+                    println!("\t{} - {}", c.name, c.view_url);
+                }
+            }
+        } else {
+            println!("There are no updates.")
+        }
     }
 
     Ok(())
@@ -161,14 +189,17 @@ async fn check_course(
     course: &waseda_moodle::course::Course,
     count: usize,
     total: usize,
+    quiet: bool,
 ) -> Result<Status> {
-    print_f!(
-        "fetching course page ({}/{}) id={} '{}'...",
-        count,
-        total,
-        course.id,
-        course.name
-    );
+    if !quiet {
+        print_f!(
+            "fetching course page ({}/{}) id={} '{}'...",
+            count,
+            total,
+            course.id,
+            course.name
+        );
+    }
     let course_page = to_comparable_object(
         &session
             .client
@@ -179,7 +210,9 @@ async fn check_course(
             .await?,
         session,
     )?;
-    print_f!("ok ");
+    if !quiet {
+        print_f!("ok ");
+    }
 
     let downloaded_course_page = dirs::home_dir()
         .unwrap()
@@ -215,7 +248,9 @@ async fn check_course(
         write!(writer, "{}", course_page.root_element().html())?;
     }
 
-    println!("(status={:?})", status);
+    if !quiet {
+        println!("(status={:?})", status);
+    }
 
     Ok(status)
 }
