@@ -19,6 +19,7 @@ macro_rules! print_f {
 async fn main() {
     if let Err(err) = init_data_dir() {
         eprintln!("Error: {}", err);
+        std::process::exit(1);
     }
 
     use clap::*;
@@ -42,11 +43,13 @@ async fn main() {
                 args.value_of("password").unwrap(),
             ) {
                 eprintln!("Error: {}", err);
+                std::process::exit(1);
             }
         }
         ("logout", _) => {
             if let Err(err) = logout() {
                 eprintln!("Error: {}", err);
+                std::process::exit(1);
             }
         }
         _ => {
@@ -63,6 +66,7 @@ async fn main() {
             };
             if let Err(err) = check(login_info).await {
                 eprintln!("Error: {}", err);
+                std::process::exit(1);
             }
         }
     }
