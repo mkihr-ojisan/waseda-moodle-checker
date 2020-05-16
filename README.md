@@ -2,6 +2,12 @@
 
 Checks if there are any updates in Waseda Moodle.
 
+It ignores
+
+- '... ago' in 'Recent forum posts'
+- '... unread posts' in forums
+- status of check boxes in each activity.
+
 ## Installation
 
 ```
