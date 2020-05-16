@@ -270,12 +270,46 @@ html_extractor! {
 fn to_comparable_object(raw_html: &str, session: &waseda_moodle::Session) -> Result<scraper::Html> {
     lazy_static::lazy_static! {
         static ref REGEX: regex::Regex = regex::Regex::new(r#"single_button[^"]*""#).unwrap();
+
+        static ref SELECTOR_NEW_FORUM_POST_DATE: scraper::Selector = scraper::Selector::parse(".snap-media-meta > time").unwrap();
+        static ref SELECTOR_UNREAD_COUNT: scraper::Selector = scraper::Selector::parse("span.unread").unwrap();
+        static ref SELECTOR_CHECKBOX: scraper::Selector = scraper::Selector::parse("span.actions").unwrap();
     }
-    Ok(scraper::Html::parse_document(
+    let mut html = scraper::Html::parse_document(
         &CoursePage::extract_from_str(&REGEX.replace_all(
             &raw_html.replace(&session.session_key, ""),
             r#"single_button""#,
         ))?
         .content,
-    ))
+    );
+
+    //更新したと判定したくない部分を消す
+    let mut elems_to_rm = Vec::new();
+    elems_to_rm.extend(
+        html.select(&SELECTOR_NEW_FORUM_POST_DATE)
+            .map(get_node_id_of_element_ref),
+    );
+    elems_to_rm.extend(
+        html.select(&SELECTOR_UNREAD_COUNT)
+            .map(get_node_id_of_element_ref),
+    );
+    elems_to_rm.extend(
+        html.select(&SELECTOR_CHECKBOX)
+            .map(get_node_id_of_element_ref),
+    );
+
+    for elem in elems_to_rm {
+        use html5ever::tree_builder::TreeSink;
+        html.remove_from_parent(&elem);
+    }
+
+    //これがないと同じhtmlでも`=`で同じと判定されない。理由は不明。
+    let html = scraper::Html::parse_document(&html.root_element().html());
+
+    Ok(html)
+}
+
+fn get_node_id_of_element_ref(elem: scraper::ElementRef) -> ego_tree::NodeId {
+    let node_ref: ego_tree::NodeRef<scraper::Node> = unsafe { std::mem::transmute(elem) };
+    node_ref.id()
 }
