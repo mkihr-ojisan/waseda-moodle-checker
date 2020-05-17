@@ -10,7 +10,7 @@ readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-waseda-moodle = "0.1.2"
+waseda-moodle = "0.2.0"
 clap = "2.33.0"
 failure = "0.1.8"
 dirs = "2.0.2"

@@ -30,6 +30,7 @@ async fn main() {
         .arg(Arg::with_name("opt_login_id").short("l").takes_value(true))
         .arg(Arg::with_name("opt_password").short("p").takes_value(true))
         .arg(Arg::with_name("quiet").short("q"))
+        .arg(Arg::with_name("check_hidden").short("h"))
         .subcommand(
             SubCommand::with_name("login")
                 .arg(Arg::with_name("login_id").required(true))
@@ -67,7 +68,8 @@ async fn main() {
             } else {
                 None
             };
-            if let Err(err) = check(login_info, is_quiet).await {
+            let check_hidden = matches.is_present("check_hidden");
+            if let Err(err) = check(login_info, check_hidden, is_quiet).await {
                 eprintln!("Error: {}", err);
                 std::process::exit(1);
             }
@@ -105,7 +107,11 @@ fn logout() -> Result<()> {
     Ok(())
 }
 
-async fn check(login_info: Option<login::LoginInfo>, quiet: bool) -> Result<()> {
+async fn check(
+    login_info: Option<login::LoginInfo>,
+    check_hidden: bool,
+    quiet: bool,
+) -> Result<()> {
     let login_info = if let Some(l) = login_info {
         l
     } else {
@@ -128,6 +134,13 @@ async fn check(login_info: Option<login::LoginInfo>, quiet: bool) -> Result<()> 
     let list = waseda_moodle::course::fetch_enrolled_courses(&session)
         .await
         .context(ErrorKind::InvalidResponse)?;
+    let hidden_list = if check_hidden {
+        waseda_moodle::course::fetch_hidden_courses(&session)
+            .await
+            .context(ErrorKind::InvalidResponse)?
+    } else {
+        Vec::new()
+    };
     if !quiet {
         println!("ok");
     }
@@ -137,8 +150,8 @@ async fn check(login_info: Option<login::LoginInfo>, quiet: bool) -> Result<()> 
     let mut no_updates = Vec::new();
 
     let mut count = 0;
-    let total = list.len();
-    for c in list {
+    let total = list.len() + hidden_list.len();
+    for c in list.into_iter().chain(hidden_list) {
         count += 1;
         let c_status = check_course(&session, &c, count, total, quiet).await?;
 

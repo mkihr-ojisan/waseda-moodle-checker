@@ -2082,9 +2082,9 @@ dependencies = [
 
 [[package]]
 name = "waseda-moodle"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7506d21f8d9eeb5a4e6524bedf574af93acc6d683cd656e0f2b3bb99059bc86"
+checksum = "b6774b54279548a50df090a35610aa6e8fc9e77e9c537072ca3f756c6b1bdd1a"
 dependencies = [
  "failure",
  "html-extractor",
