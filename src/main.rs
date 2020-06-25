@@ -287,6 +287,7 @@ fn to_comparable_object(raw_html: &str, session: &waseda_moodle::Session) -> Res
         static ref SELECTOR_NEW_FORUM_POST_DATE: scraper::Selector = scraper::Selector::parse(".snap-media-meta > time").unwrap();
         static ref SELECTOR_UNREAD_COUNT: scraper::Selector = scraper::Selector::parse("span.unread").unwrap();
         static ref SELECTOR_CHECKBOX: scraper::Selector = scraper::Selector::parse("span.actions").unwrap();
+        static ref SELECTOR_MATHJAX: scraper::Selector = scraper::Selector::parse(".MathJax").unwrap();
     }
     let mut html = scraper::Html::parse_document(
         &CoursePage::extract_from_str(&REGEX.replace_all(
@@ -308,6 +309,10 @@ fn to_comparable_object(raw_html: &str, session: &waseda_moodle::Session) -> Res
     );
     elems_to_rm.extend(
         html.select(&SELECTOR_CHECKBOX)
+            .map(get_node_id_of_element_ref),
+    );
+    elems_to_rm.extend(
+        html.select(&SELECTOR_MATHJAX)
             .map(get_node_id_of_element_ref),
     );
 
